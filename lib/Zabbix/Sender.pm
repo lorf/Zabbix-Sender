@@ -194,6 +194,23 @@ has 'zabbix_template_1_8' => (
     'default' => "a4 b V V a*",
 );
 
+=head2 bulk_buf_clear_on_fail
+
+Boolean setting which determines whether to clear bulk buffer if the sending of
+the buffered values failed in L</bulk_send> method call. Default is false.
+Without arguments returns current setting.
+
+    $current_setting = $Sender->bulk_buf_clear_on_fail();
+    $Sender->bulk_buf_clear_on_fail(1);
+
+=cut
+
+has 'bulk_buf_clear_on_fail' => (
+    'is'    => 'rw',
+    'isa'   => 'Bool',
+    'default'   => 0,
+);
+
 =head2 _encode_request
 
 This method encodes values as a json string and creates
@@ -437,17 +454,17 @@ sub _disconnect {
 
 =head2 bulk_buf_add
 
-Adds values to the stack of values to bulk_send.
+Adds values to the stack of values to L</bulk_send>.
 
 It accepts arguments in forms:
 
-$sender->bulk_buf_add($key, $value, $clock, ...);
-$sender->bulk_buf_add([$key, $value, $clock], ...);
-$sender->bulk_buf_add($hostname, [ [$key, $value, $clock], ...], ...);
+    $sender->bulk_buf_add($key, $value, $clock, ...);
+    $sender->bulk_buf_add([$key, $value, $clock], ...);
+    $sender->bulk_buf_add($hostname, [ [$key, $value, $clock], ...], ...);
 
 Last form allows to add values for several hosts at once.
 
-$clock is optional and may be undef, empty or omitted.
+C<$clock> is optional and may be undef, empty or omitted.
 
 Returns true if successful or undef if invalid arguments are specified.
 
@@ -515,7 +532,7 @@ sub bulk_buf_add {
 
 =head2 bulk_buf_clear
 
-Clear bulk_send buffer.
+Clear L</bulk_send> buffer.
 
 =cut
 
@@ -529,8 +546,15 @@ sub bulk_buf_clear {
 
 Send accumulated values to the server.
 
-It accepts the same arguments as bulk_buf_add. If arguments are specified,
+It accepts the same arguments as L</bulk_buf_add>. If arguments are specified,
 they are added to the buffer before sending.
+
+Bulk buffer is cleared upon success. If sending fails, the bulk buffer is
+cleared only if L</bulk_buf_clear_on_fail> is set to true. Bulk buffer is not
+cleared if C<bulk_send> fails because of invalid arguments specified.
+
+Returns true on success, false on sending failure or undef if invalid arguments
+are specified.
 
 =cut
 
@@ -551,14 +575,11 @@ sub bulk_send {
         }
     }
 
-    if ($status) {
+    if ($status or $self->bulk_buf_clear_on_fail()) {
         $self->bulk_buf_clear();
-        return 1;
-    }
-    else {
-        return;
     }
 
+    return $status;
 }
 
 =head2 DEMOLISH
